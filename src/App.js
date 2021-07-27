@@ -3,8 +3,10 @@ import React, { Component } from 'react';
 import imagesApi from './Components/imagesApi';
 import Searchbar from './Components/Searchbar';
 import ImageGallery from './Components/ImageGallery';
+import ImageGalleryItem from './Components/ImageGalleryItem'
 import Button from './Components/Button';
-import Modal from './Components/Modal'
+import Modal from './Components/Modal';
+import Loader from 'react-loader-spinner';
 
 import './App.css';
 
@@ -12,11 +14,15 @@ class App extends Component {
   state = {
     images: [],
     currentPage: 1,
+    currentPageImages: [],
     searchQuery: '',
     isLoading: false,
-    showModal: false,
     error: null,
-  }
+    largeImage: '',
+    showModal: false,
+    modalUrl: '',
+    modalAlt: '',
+  };
 
   componentDidMount() {
   }
@@ -33,13 +39,18 @@ class App extends Component {
     }))
   }
 
-  onChangeQuery = query => {
-    this.setState({ searchQuery: query, currentPage: 1, images: [], error: null, })
+  onChangeQuery = searchQuery => {
+    this.setState({ 
+      searchQuery: searchQuery, 
+      currentPage: 1, 
+      images: [], 
+      error: null, 
+    })
   }
 
   fetchImages = () => {
-    const { currentPage, searchQuery } = this.state;
-    const options = { searchQuery, currentPage }
+    const { searchQuery, currentPage } = this.state;
+    const options = { searchQuery, currentPage };
 
     this.setState({ isLoading: true });
 
@@ -47,27 +58,52 @@ class App extends Component {
     .fetchImages(options)
     .then(images => {
       this.setState( prevState => ({
-        images: [...prevState.images, ...images] })
-    )}).catch(error => this.setState({ error }))
-    .finally(() => this.setState({ isLoading: false}));
+        images: [...prevState.images, ...images], 
+        currentPage: prevState.currentPage + 1,
+        currentPageImages: [...images], 
+      }));
+      if (images.length === 0) {
+          this.setState({
+            error: 'Nothing was find by your query. Try again.',});
+      }})
+    .catch(error => this.setState({ error: error.message }))
+    .finally(() => this.setState({ isLoading: false }));
+  };
+
+  onClickImageGalleryItem = e => {
+    this.setState({
+      modalUrl: e.currentTarget.getAttribute('url'),
+      modalAlt: e.currentTarget.getAttribute('alt'),
+    });
+    this.toggleModal();
   };
 
   render() {
-    const { images, isLoading, showModal, error } = this.state;
-    const shouldRenderLoadMoreButton = images.length > 0 && !isLoading;
+    const { images, currentPageImages, isLoading, error, showModal, modalAlt, modalUrl } = this.state;
+    const shouldRenderLoadMoreButton = !(currentPageImages.length < 12) && !isLoading;
 
     return (
       <>
-        {error && <h1>Ой ошибка, все пропало!!!</h1>}
+        <Searchbar onChangeQuery={this.onChangeQuery} />
+        {error && (
+          <p style={{ color: 'red', textAlign: 'center', fontSize: '20px' }}>
+            This is error: {error}
+          </p>
+        )}
 
-        <Searchbar onChangeQuery={this.onChangeQuery} onFetchImages={this.fetchImages}/>
+        <ImageGallery>
+          {images.map(({ id, tags, webformatURL, largeImageURL }) => (
+            <ImageGalleryItem key={id} alt={tags} src={webformatURL} url={largeImageURL} onClick={this.onClickImageGalleryItem} />
+          ))}
+        </ImageGallery>
+        { isLoading && <Loader type="Bars" color="#00BFFF" height={80} width={80} /> }       
 
-        { isLoading && <h2>Loading...</h2>}
+        { shouldRenderLoadMoreButton && 
+          <Button onFetchImages={this.fetchImages}/> }
 
-        { shouldRenderLoadMoreButton && <> 
-          <ImageGallery images={images} onToggleModal={this.toggleModal}/> 
-          <Button onFetchImages={this.fetchImages}/>
-        </> }
+        {showModal && (
+          <Modal src={modalUrl} alt={modalAlt} onClose={this.toggleModal} />
+        )}  
       </>      
     )    
   }   
